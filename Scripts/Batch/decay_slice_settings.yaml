@@ -1,0 +1,13 @@
+search_string: 'HEK*.ptu'
+filetype: 'PTU'
+binning: 4
+ch1_suffix: '_green_s'
+ch2_suffix: '_green_p'
+channel_number_ch1: [0]
+channel_number_ch2: [2]
+make_plots: True
+display_plot: False
+jordi: True
+anisotropy: False
+g_factor: 0.98
+time_window_size: 59.0

@@ -1,0 +1,91 @@
+Component 1:     X:\PROJECTS\P019_JovE_FCCS\Simulation\IRF\m006.spc
+
+Decay generator_new5.vi
+25.05.2021  16:06
+
+	String: component 2
+	Tau i [ns]: 1-dim array:
+2.400	2.000	1.000
+
+	Ampl. Tau i: 1-dim array:
+1.000	0.000	0.000
+
+	rho j  [ns]: 1-dim array:
+100.000	5.000	10.000
+
+	r0 i.j: 2-dim array:
+0.380	0.000	0.000
+0.000	0.000	0.000
+0.000	0.000	0.000
+
+	TAC wdw [ns]: 50.000000
+	TAC Gain: 3
+	TAC offset: 0
+	TAC range: 512
+	l1: 0.030800
+	l2: 0.036800
+	Background Par: 1-dim array:
+0.001	0.001
+
+	Background Per: 1-dim array:
+0.001	0.001
+
+	Darck counts: 1-dim array:
+0.000	0.000
+
+	g-factors: 1-dim array:
+1.000	1.000
+
+	stop: OFF
+	Read Decay?: OFF
+	Read Decay?: OFF
+	Darck counts: 1-dim array:
+0.000	0.000
+
+
+
+Decay generator_new5.vi
+25.05.2021  16:07
+
+	String: component 3
+	Tau i [ns]: 1-dim array:
+0.900	2.000	1.000
+
+	Ampl. Tau i: 1-dim array:
+1.000	0.000	0.000
+
+	rho j  [ns]: 1-dim array:
+100.000	5.000	10.000
+
+	r0 i.j: 2-dim array:
+0.380	0.000	0.000
+0.000	0.000	0.000
+0.000	0.000	0.000
+
+	TAC wdw [ns]: 50.000000
+	TAC Gain: 3
+	TAC offset: 0
+	TAC range: 512
+	l1: 0.030800
+	l2: 0.036800
+	Background Par: 1-dim array:
+0.001	0.001
+
+	Background Per: 1-dim array:
+0.001	0.001
+
+	Darck counts: 1-dim array:
+0.000	0.000
+
+	g-factors: 1-dim array:
+1.000	1.000
+
+	stop: OFF
+	Read Decay?: OFF
+	Read Decay?: OFF
+	Darck counts: 1-dim array:
+0.000	0.000
+
+
+
+Mixture    :     X:\PROJECTS\P019_JovE_FCCS\Simulation\CTSNAP_Dyn_Trip\m064.spc

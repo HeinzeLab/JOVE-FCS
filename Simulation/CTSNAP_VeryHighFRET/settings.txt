@@ -1,0 +1,228 @@
+# Burbulator v. 1.12.0.1
+# Montag, 10. Mai 2021 07:43:40
+
+# General
+CurrentPath = E:\Users\Hemmen\2DSim\CTSNAP_Dyn_v2\
+FocusType = 3D Gaussian
+SimulationVSize = 20
+w0 = 0.5
+z0 = 1.5
+LensResolution = 0.2
+LensAperture = 120
+PinholeR = 0.8
+NPhotons = 10000000
+TimeStep = 0.005
+RedON = True
+YellowON = True
+PulsedON = True
+RandomMode = Start from a new state
+DarkInterconvert = False
+
+# Anisotropy
+r0 = 0.38
+GFactor = 1
+l1 = 0.0308
+l2 = 0.0368
+ParallelScatterFraction = 0.57142857
+
+# Save as
+PhotonsPerFile = 300000
+FileNamePrefix = m
+FileExtension = spc
+FileNumberFormat = 000
+
+# TAC parameters
+NChannels = 4096
+TACdt = 0.004069
+LaserPeriod = 13.596
+IRFFullName = (not a path)
+BgFullName = (not a path)
+GreenPChannel = 8
+GreenSChannel = 0
+RedPChannel = 9
+RedSChannel = 1
+YellowPChannel = 10
+YellowSChannel = 2
+
+# IRF and convolutions
+GaussianIRF = True
+GaussianIRFfwhm = 0.2
+IRFfile = (not a path)
+BackgroundDark = True
+BackgroundFile = (not a path)
+ConvoluteFiles = True
+OverrideBrightness = True
+
+# RND seeds
+RND1Seed = 700820840
+RND2Seed = 1296827562
+
+# Molecule 1 (cw)
+Is_On = True
+Nmolecules = 9.0270333367641
+DCoefficient = 0.0625
+QGreenP = 10
+QGreenS = 0
+QRedP = 1
+QRedS = 0
+QYellowP = 10
+QYellowS = 0
+tauD = 1
+Nfcs = 0.0015
+SGreen = 0.0075
+SRed = 0.00908333333333333
+SYellow = 0.015
+
+# Molecule 1 (tr)
+DecayPatternFullName = (not a path)
+UseTauRho = True
+TauGreen = 3
+RhoGreen = 100
+TauRed = 3
+RhoRed = 100
+TauYellow = 3
+RhoYellow = 100
+TauRhoFile = (not a path)
+
+# Molecule 1 (dynamics)
+RatesRad = System.Double[]
+ 0 0 0 0 0 0
+KBrightDark = 0
+KBrightBleached = 0
+RatesNonRad = System.Double[]
+ 0 0 7 0 0 0
+KDarkBright = 0
+
+# Molecule 2 (cw)
+Is_On = True
+Nmolecules = 21.0630777857829
+DCoefficient = 0.000625
+QGreenP = 10
+QGreenS = 0
+QRedP = 1
+QRedS = 0
+QYellowP = 10
+QYellowS = 0
+tauD = 100
+Nfcs = 0.0035
+SGreen = 0.0175
+SRed = 0.0211944444444444
+SYellow = 0.035
+
+# Molecule 2 (tr)
+DecayPatternFullName = (not a path)
+UseTauRho = True
+TauGreen = 3
+RhoGreen = 100
+TauRed = 3
+RhoRed = 100
+TauYellow = 3
+RhoYellow = 100
+TauRhoFile = (not a path)
+
+# Molecule 2 (dynamics)
+RatesRad = System.Double[]
+ 0 0 0 0 0 0
+KBrightDark = 0
+KBrightBleached = 0
+RatesNonRad = System.Double[]
+ 0 0 0 7 0 0
+KDarkBright = 0
+
+# Molecule 3 (cw)
+Is_On = True
+Nmolecules = 9.0270333367641
+DCoefficient = 0.0625
+QGreenP = 0.999999999999999
+QGreenS = 0
+QRedP = 10.1
+QRedS = 0
+QYellowP = 10
+QYellowS = 0
+tauD = 1
+Nfcs = 0.0015
+SGreen = 0.0045
+SRed = 0.0121166666666667
+SYellow = 0.015
+
+# Molecule 3 (tr)
+DecayPatternFullName = (not a path)
+UseTauRho = True
+TauGreen = 0.5
+RhoGreen = 100
+TauRed = 3
+RhoRed = 100
+TauYellow = 3
+RhoYellow = 100
+TauRhoFile = (not a path)
+
+# Molecule 3 (dynamics)
+RatesRad = System.Double[]
+ 0 0 0 0 0 0
+KBrightDark = 0
+KBrightBleached = 0
+RatesNonRad = System.Double[]
+ 7 0 0 0 0 0
+KDarkBright = 0
+
+# Molecule 4 (cw)
+Is_On = True
+Nmolecules = 21.0630777857829
+DCoefficient = 0.000625
+QGreenP = 0.999999999999999
+QGreenS = 0
+QRedP = 10.1
+QRedS = 0
+QYellowP = 10
+QYellowS = 0
+tauD = 100
+Nfcs = 0.0035
+SGreen = 0.35
+SRed = 0.21
+SYellow = 0.035
+
+# Molecule 4 (tr)
+DecayPatternFullName = (not a path)
+UseTauRho = True
+TauGreen = 0.5
+RhoGreen = 100
+TauRed = 3
+RhoRed = 100
+TauYellow = 3
+RhoYellow = 100
+TauRhoFile = (not a path)
+
+# Molecule 4 (dynamics)
+RatesRad = System.Double[]
+ 0 0 0 0 0 0
+KBrightDark = 0
+KBrightBleached = 0
+RatesNonRad = System.Double[]
+ 0 7 0 0 0 0
+KDarkBright = 0
+
+# Molecule 5 (cw)
+Is_On = False
+
+# Molecule 5 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 5 (dynamics)
+
+# Molecule 6 (cw)
+Is_On = False
+
+# Molecule 6 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 6 (dynamics)
+
+# Background (cw)
+Is_On = True
+QGreenScatter = 1
+QGreenDark = 0
+QRedScatter = 0.5
+QRedDark = 0
+QYellowScatter = 0.5
+QYellowDark = 0
+

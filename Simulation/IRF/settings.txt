@@ -1,0 +1,115 @@
+# Burbulator v. 1.12.0.1
+# Dienstag, 25. Mai 2021 14:09:46
+
+# General
+CurrentPath = E:\Users\Hemmen\2DSim\CTSNAP_Dyn\
+FocusType = 3D Gaussian
+SimulationVSize = 20
+w0 = 0.5
+z0 = 1.5
+LensResolution = 0.2
+LensAperture = 120
+PinholeR = 0.8
+NPhotons = 1000000
+TimeStep = 0.005
+RedON = True
+YellowON = True
+PulsedON = True
+RandomMode = Start from a new state
+DarkInterconvert = False
+
+# Anisotropy
+r0 = 0.38
+GFactor = 1
+l1 = 0.0308
+l2 = 0.0368
+ParallelScatterFraction = 0.57142857
+
+# Save as
+PhotonsPerFile = 300000
+FileNamePrefix = m
+FileExtension = spc
+FileNumberFormat = 000
+
+# TAC parameters
+NChannels = 4096
+TACdt = 0.004069
+LaserPeriod = 13.596
+IRFFullName = (not a path)
+BgFullName = (not a path)
+GreenPChannel = 8
+GreenSChannel = 0
+RedPChannel = 9
+RedSChannel = 1
+YellowPChannel = 10
+YellowSChannel = 2
+
+# IRF and convolutions
+GaussianIRF = True
+GaussianIRFfwhm = 0.2
+IRFfile = (not a path)
+BackgroundDark = True
+BackgroundFile = (not a path)
+ConvoluteFiles = True
+OverrideBrightness = True
+
+# RND seeds
+RND1Seed = 542811366
+RND2Seed = 1547229824
+
+# Molecule 1 (cw)
+Is_On = False
+
+# Molecule 1 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 1 (dynamics)
+
+# Molecule 2 (cw)
+Is_On = False
+
+# Molecule 2 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 2 (dynamics)
+
+# Molecule 3 (cw)
+Is_On = False
+
+# Molecule 3 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 3 (dynamics)
+
+# Molecule 4 (cw)
+Is_On = False
+
+# Molecule 4 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 4 (dynamics)
+
+# Molecule 5 (cw)
+Is_On = False
+
+# Molecule 5 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 5 (dynamics)
+
+# Molecule 6 (cw)
+Is_On = False
+
+# Molecule 6 (tr)
+DecayPatternFullName = (not a path)
+
+# Molecule 6 (dynamics)
+
+# Background (cw)
+Is_On = True
+QGreenScatter = 1
+QGreenDark = 0
+QRedScatter = 0.5
+QRedDark = 0
+QYellowScatter = 0.5
+
