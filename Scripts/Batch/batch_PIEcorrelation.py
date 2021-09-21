@@ -170,8 +170,8 @@ def main(
     cr_green_p = nr_of_green_photons / 2 / duration_sec / 1000  # kHz, avg of two detectors
     cr_red_p = nr_of_red_p_photons / 2 / duration_sec / 1000  # kHz, avg of two detectors
     cr_red_d = nr_of_red_d_photons / 2 / duration_sec / 1000  # kHz, avg of two detectors
-    avg_cr_PIE = (cr_green_p + cr_red_d) / 2  # avg of green and red
-    avg_cr_FRET = (cr_green_p + cr_red_p) / 2  # avg of green and red
+    avg_cr_PIE = (cr_green_p + cr_red_d)  # avg of green and red
+    avg_cr_FRET = (cr_green_p + cr_red_p)  # avg of green and red
 
     suren_columnPIE[0] = duration_sec
     suren_columnPIE[1] = avg_cr_PIE
