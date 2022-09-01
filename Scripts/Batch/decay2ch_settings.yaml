@@ -1,4 +1,4 @@
-search_string: 'A488_20Mhz_*.ptu'
+search_string: 'A488_*.ptu'
 filetype: 'PTU'
 binning: 4
 ch1_suffix: '_green_s.txt'
@@ -8,5 +8,5 @@ channel_number_ch2: [2]
 make_plots: True
 display_plot: False
 jordi: True
-anisotropy: False
+anisotropy: True
 g_factor: 0.98

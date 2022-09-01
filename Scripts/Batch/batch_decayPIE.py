@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 #!/usr/bin/env python
 
 from __future__ import annotations
@@ -29,7 +35,8 @@ def main(
         display_plot: bool = False,
         jordi: bool = True,
         anisotropy: bool = True,
-        g_factor: float = 0.98
+        g_factor_green: float = 0.98,
+        g_factor_red: float = 0.98
 ):
     """
     for batch export, please change in the settings file
@@ -58,10 +65,10 @@ def main(
     ########################################################
     basename = os.path.abspath(filename).split(".")[0]
     data = tttrlib.TTTR(filename, filetype)
-    header = data.get_header()
-    macro_time_calibration = header.macro_time_resolution  # unit nanoseconds
-    micro_times = data.get_micro_time()
-    micro_time_resolution = header.micro_time_resolution
+    header = data.header
+    macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+    micro_times = data.micro_times
+    micro_time_resolution = data.header.micro_time_resolution  # unit seconds
 
     ########################################################
     #  Data rebinning (native resolution often too high, 16-32 ps sufficient)
@@ -79,10 +86,10 @@ def main(
 
     # the dtype to int64 otherwise numba jit has hiccups
     # Select the channels & get the respective microtimes
-    green_s_indices = np.array(data.get_selection_by_channel(channel_number_ch1), dtype=np.int64)
-    green_p_indices = np.array(data.get_selection_by_channel(channel_number_ch2), dtype=np.int64)
-    red_s_indices = np.array(data.get_selection_by_channel(channel_number_ch3), dtype=np.int64)
-    red_p_indices = np.array(data.get_selection_by_channel(channel_number_ch4), dtype=np.int64)
+    green_s_indices = data.get_selection_by_channel(channel_number_ch1)
+    green_p_indices = data.get_selection_by_channel(channel_number_ch2)
+    red_s_indices = data.get_selection_by_channel(channel_number_ch3)
+    red_p_indices = data.get_selection_by_channel(channel_number_ch4)
 
     green_s = micro_times[green_s_indices]
     green_p = micro_times[green_p_indices]
@@ -120,8 +127,8 @@ def main(
     red_s_counts_cut_delay = red_s_counts_delay[binned_nr_of_bins // 2:binned_nr_of_bins:]
     red_p_counts_cut_delay = red_p_counts_delay[binned_nr_of_bins // 2:binned_nr_of_bins:]
 
-    # Build the time axis
-    dt = header.micro_time_resolution
+    # Build the time axis in nanoseconds
+    dt = micro_time_resolution * 1e9
     x_axis = np.arange(green_s_counts_cut.shape[0]) * dt * binning  # full time axis
     x_axis_prompt = x_axis[0:binned_nr_of_bins // 2:]  # first half for prompt window
     x_axis_delay = x_axis[binned_nr_of_bins // 2::]  # second half for delay window
@@ -182,8 +189,8 @@ def main(
         
         p.semilogy(x_axis_prompt, red_s_counts_cut_prompt, label='rs(prompt)')
         p.semilogy(x_axis_prompt, red_p_counts_cut_prompt, label='rp(prompt)')
-        p.semilogy(x_axis_delay, red_s_counts_cut_delay, label='rs(prompt)')
-        p.semilogy(x_axis_delay, red_p_counts_cut_delay, label='rp(prompt)')
+        p.semilogy(x_axis_delay, red_s_counts_cut_delay, label='rs(delay)')
+        p.semilogy(x_axis_delay, red_p_counts_cut_delay, label='rp(delay)')
         p.xlabel('time [ns]')
         p.ylabel('Counts')
         p.legend()
@@ -225,13 +232,13 @@ def main(
     ########################################################
 
     if anisotropy:
-        aniso_decay_green = (green_p_counts_cut - g_factor * green_s_counts_cut) / \
-                            (green_p_counts_cut + 2 * g_factor * green_s_counts_cut)
-        aniso_decay_red_prompt = (red_p_counts_cut_prompt - g_factor * red_s_counts_cut_prompt) / \
-                            (red_p_counts_cut_prompt + 2 * g_factor * red_s_counts_cut_prompt)
+        aniso_decay_green = (green_p_counts_cut - g_factor_green * green_s_counts_cut) / \
+                            (green_p_counts_cut + 2 * g_factor_green * green_s_counts_cut)
+        aniso_decay_red_prompt = (red_p_counts_cut_prompt - g_factor_red * red_s_counts_cut_prompt) / \
+                            (red_p_counts_cut_prompt + 2 * g_factor_red * red_s_counts_cut_prompt)
 
-        aniso_decay_red_delay = (red_p_counts_cut_delay - g_factor * red_s_counts_cut_delay) / \
-                            (red_p_counts_cut_delay + 2 * g_factor * red_s_counts_cut_delay)
+        aniso_decay_red_delay = (red_p_counts_cut_delay - g_factor_red * red_s_counts_cut_delay) / \
+                            (red_p_counts_cut_delay + 2 * g_factor_red * red_s_counts_cut_delay)
 
         aniso_export_green = basename +"_aniso_green.txt"
         np.savetxt(
@@ -242,19 +249,19 @@ def main(
         aniso_export_red_prompt = basename + "_aniso_rp.txt"
         np.savetxt(
             aniso_export_red_prompt,
-            np.vstack([x_axis, aniso_decay_red_prompt]).T
+            np.vstack([x_axis_prompt, aniso_decay_red_prompt]).T
         )
 
         aniso_export_red_delay = basename + "_aniso_rd.txt"
         np.savetxt(
             aniso_export_red_delay,
-            np.vstack([x_axis, aniso_decay_red_delay]).T
+            np.vstack([x_axis_delay, aniso_decay_red_delay]).T
         )
 
         if make_plots:
             p.plot(x_axis, aniso_decay_green, label='rD(t)')
-            p.plot(x_axis, aniso_decay_red_prompt, label='rAD(t)')
-            p.plot(x_axis, aniso_decay_red_delay, label='rA(t)')
+            p.plot(x_axis_prompt, aniso_decay_red_prompt, label='rAD(t)')
+            p.plot(x_axis_delay, aniso_decay_red_delay, label='rA(t)')
             p.xlabel('time [ns]')
             p.ylabel('r(t)')
             p.legend()
@@ -286,7 +293,7 @@ if __name__ == "__main__":
     settings = dict()
     with open(settings_file, 'r') as fp:
         settings.update(
-            yaml.load(fp.read())
+            yaml.load(fp.read(), Loader=yaml.FullLoader)
         )
     search_string = settings.pop('search_string')
     print("Compute decays")

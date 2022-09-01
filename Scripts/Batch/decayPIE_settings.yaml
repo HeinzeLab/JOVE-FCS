@@ -1,4 +1,4 @@
-search_string: '*.ptu'
+search_string: 'DNA*.ptu'
 filetype: 'PTU'
 binning: 4
 ch1_suffix: '_green_s.txt'
@@ -15,4 +15,5 @@ make_plots: True
 display_plot: False
 jordi: True
 anisotropy: False
-g_factor: 0.98
+g_factor_green: 0.98
+g_factor_red: 0.98

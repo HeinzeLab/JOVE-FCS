@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 #!/usr/bin/env python
 
 from __future__ import annotations
@@ -9,7 +15,6 @@ import yaml
 import numpy as np
 import pylab as p
 import tttrlib
-import functions
 
 
 def main(
@@ -20,6 +25,8 @@ def main(
         acf2_suffix: str = '_ch2_auto.cor',
         channel_number_ch1: tuple = (0,),
         channel_number_ch2: tuple = (2,),
+        n_casc: int = 25,
+        n_bins: int = 9,
         make_plots: bool = True,
         display_plot: bool = False
 ):
@@ -32,6 +39,8 @@ def main(
     :param acf2_suffix: suffix appended to saved results from autocorrelation from ch2
     :param channel_number_ch1: channel 1 of experiment (perpendicular), here: [0]
     :param channel_number_ch2: channel 2 of experiment (parallel), here: [2]
+    :param n_casc: n_bins and n_casc defines the settings of the multi-tau
+    :param n_bins: correlation algorithm
     :param make_plots: set "true" if images should be saved
     :param display_plot: set "true" if images should be displayed
     :return:
@@ -43,52 +52,56 @@ def main(
     data = tttrlib.TTTR(filename, filetype)
 
     # rep rate = 80 MHz
-    header = data.get_header()
-    header_data = header.data
-    macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
-    macro_time_calibration_ms = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-    macro_times = data.get_macro_time()
+    header = data.header
+    macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+    macro_times = data.macro_times
 
-    # the dtype to int64 otherwise numba jit has hiccups
-    green_s_indices = np.array(data.get_selection_by_channel(channel_number_ch1), dtype=np.int64)
-    green_p_indices = np.array(data.get_selection_by_channel(channel_number_ch2), dtype=np.int64)
+    green_s_indices = data.get_selection_by_channel([channel_number_ch1])
+    green_p_indices = data.get_selection_by_channel([channel_number_ch2])
 
-    crosscorrelation_curve = functions.correlate(
-        macro_times=macro_times,
-        indices_ch1=green_s_indices,
-        indices_ch2=green_p_indices,
-        n_casc=25
+    settings = {
+        "method": "default",
+        "n_bins": n_bins,  # n_bins and n_casc defines the settings of the multi-tau
+        "n_casc": n_casc,  # correlation algorithm
+        "make_fine": False  # Do not use the microtime information
+    }
+
+    crosscorrelation_curve = tttrlib.Correlator(
+        channels=([channel_number_ch1], [channel_number_ch2]),
+        tttr=data,
+        **settings
     )
 
     ########################################################
     #  Option: get autocorrelation curves
     ########################################################
 
-    autocorr_curve_ch1 = functions.correlate(
-        macro_times=macro_times,
-        indices_ch1=green_s_indices,
-        indices_ch2=green_s_indices,
-        n_casc=25
+    # Autocorrelation channel 1
+    autocorr_curve_ch1 = tttrlib.Correlator(
+        channels=([channel_number_ch1], [channel_number_ch1]),
+        tttr=data,
+        **settings
     )
 
-    autocorr_curve_ch2 = functions.correlate(
-        macro_times=macro_times,
-        indices_ch1=green_p_indices,
-        indices_ch2=green_p_indices,
-        n_casc=25
+    # Autocorrelation channel 2
+    autocorr_curve_ch2 = tttrlib.Correlator(
+        channels=([channel_number_ch2], [channel_number_ch2]),
+        tttr=data,
+        **settings
     )
 
     ########################################################
     #  Save correlation curve
     ########################################################
-    time_axis = crosscorrelation_curve[0] * macro_time_calibration_ms
-    crosscorrelation_curve = crosscorrelation_curve[1]
-    autocorrelation_ch1 = autocorr_curve_ch1[1]
-    autocorrelation_ch2 = autocorr_curve_ch2[1]
+    time_axis_sec = crosscorrelation_curve.x_axis
+    time_axis = time_axis_sec * 1000  # bring time axis to the common unit millisecond
+    crosscorrelation = crosscorrelation_curve.correlation
+    autocorrelation_ch1 = autocorr_curve_ch1.correlation
+    autocorrelation_ch2 = autocorr_curve_ch2.correlation
     suren_column_ccf = np.zeros_like(time_axis)  # fill 3rd column with 0's for compatibility with ChiSurf / Kristine
     suren_column_acf1 = np.zeros_like(time_axis)
     suren_column_acf2 = np.zeros_like(time_axis)
-    duration = float(header_data["TTResult_StopAfter"])  # unit millisecond
+    duration = float(header.tag("TTResult_StopAfter")["value"])  # unit millisecond
     duration_sec = duration / 1000
 
     nr_of_green_s_photons = len(green_s_indices)
@@ -113,7 +126,7 @@ def main(
         np.vstack(
             [
                 time_axis,
-                crosscorrelation_curve,
+                crosscorrelation,
                 suren_column_ccf
             ]
         ).T,
@@ -150,14 +163,15 @@ def main(
     #  Plotting
     ########################################################
     if make_plots:
-        p.semilogx(time_axis, crosscorrelation_curve, label='gs-gp')
+        p.semilogx(time_axis, crosscorrelation, label='gs-gp')
         p.semilogx(time_axis, autocorrelation_ch1, label='gs-gs')
         p.semilogx(time_axis, autocorrelation_ch2, label='gp-gp')
-
+        
+        p.ylim(ymin=1)
         p.xlabel('correlation time [ms]')
         p.ylabel('correlation amplitude')
         p.legend()
-        p.savefig(basename + "corr.svg", dpi=150)
+        p.savefig(basename + "_corr.svg", dpi=150)
         if display_plot:
             p.show()
         p.close()
@@ -183,7 +197,7 @@ if __name__ == "__main__":
     settings = dict()
     with open(settings_file, 'r') as fp:
         settings.update(
-            yaml.load(fp.read())
+            yaml.load(fp.read(), Loader=yaml.FullLoader)
         )
     search_string = settings.pop('search_string')
     print("Compute correlations")

@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 #!/usr/bin/env python
 from __future__ import annotations
 import argparse
@@ -8,16 +14,96 @@ import yaml
 import numpy as np
 import pylab as p
 import tttrlib
-import functions_slice
 
+def select_by_deviation(
+        deviations: typing.List[float],
+        d_max: float = 2e-5,
+) -> typing.List[int]:
+    """ The single correlated time windows are now selected for further analysis based on their deviation
+    to the first n curves
+    :param deviations: list of deviations, calculated in the calculate_deviation function
+    :param d_max: threshold, all curves which have a deviation value smaller than this are selected for further analysis
+    :return: list of indices, the indices corresponds to the curves' number/time window
+    """
+    print("Selecting indices of curves by deviations.")
+    devs = deviations[0]
+    selected_curves_idx = list()
+    for i, d in enumerate(devs):
+        if d < d_max:
+            selected_curves_idx.append(i)
+    print("Total number of curves: ", len(devs))
+    print("Selected curves: ", len(selected_curves_idx))
+    return selected_curves_idx
+     
+def calculate_deviation(
+        correlation_amplitudes: np.ndarray,
+        comparison_start: int = 120,
+        comparison_stop: int = 180,
+        plot_dev: bool = False,
+        n: int = 1,
+) -> typing.List[float]:
+    """Determines the similarity of the individual curves towards the first n curves
+    The values of each correlation amplitude are averaged over a time range defined by start and stop
+    This time range usually encompasses the diffusion time, i.e. is sample-specific
+    The calculated average is compared to the mean of the first n curves
+
+    :param correlation_amplitudes: array of correlation amplitudes
+    :param comparison_start: index within the array of correlation amplitude which marks the start of comparison range
+    :param comparison_stop: index within the array of correlation amplitude which marks the end of comparison range
+    :param plot_dev: if set to True (default is True) plots the deviation
+    :param n: to how many curves of the beginning the other curves should be compared to
+    :return: list of deviations calculated as difference to the starting amplitudes
+    """
+    print("Calculating deviations.")
+    print("Comparison time range:", comparison_start, "-", comparison_stop)
+    deviation = list()
+    print("compared to the first", n, "curves")
+    # calculates from every curve the difference to the mean of the first N curves, squares this value
+    # and divides this value by the number of curves
+    if (comparison_start is None) or (comparison_stop is None):
+        ds = np.mean(
+            (correlation_amplitudes - correlation_amplitudes[:n].mean(axis=0))**2.0, axis=1
+        ) / len(correlation_amplitudes)
+        deviation.append(ds)
+    else:
+        ca = correlation_amplitudes[:, comparison_start: comparison_stop]
+        ds = np.mean(
+            (ca - ca[:n].mean(axis=0)) ** 2.0, axis=1
+        ) / (comparison_stop - comparison_start)
+        deviation.append(ds)
+    if plot_dev:
+        x = np.arange(len(ds))
+        p.semilogy(x, ds)
+        p.show()
+    return deviation
+
+def calculate_countrate(
+        timewindows: typing.List[np.ndarray],
+        time_window_size_seconds: float = 2.0,
+) -> typing.List[float]:
+    """based on the sliced timewindows the average countrate for each slice is calculated
+    :param timewindows: list of numpy arrays, the indices which have been returned from getting_indices_of_time_windows
+    :param time_window_size_seconds: The size of the time windows in seconds
+    :return: list of average countrate (counts/sec) for the individual time windows
+    """
+    print("Calculating the average count rate...")
+    avg_count_rate = list()
+    index = 0
+    while index < len(timewindows):
+        nr_of_photons = len(timewindows[index])  # determines number of photons in a time slice
+        avg_countrate = nr_of_photons / time_window_size_seconds  # division by length of time slice in seconds
+        avg_count_rate.append(avg_countrate)
+        index += 1
+    return avg_count_rate
 
 def main(
         filename: str = '1_20min_1.ptu',
         filetype: str = 'PTU',
         n_casc_fine: int = 37,
         n_casc_coarse: int = 25,
-        comparison_start: int = 220,
-        comparison_stop: int = 280,
+        n_bins: int = 9,
+        comparison_start: int = 80,
+        comparison_stop: int = 100,
         n_comparison: int = 1,
         deviation_max: float = 2e-5,
         cc_suffix: str = '_cross.cor',
@@ -38,6 +124,7 @@ def main(
     :param filetype: filetype to be read, can be ht3, ptu, ...
     :param n_casc_fine: nr of correlation cascades for full cross-correlation
     :param n_casc_coarse: nr of correlation cascades for auto-correlation (no microtimes used)
+    :param n_bins: n_bins and n_casc defines the settings of the multi-tau correlation algorithm
     :param comparison_start: start bin for comparison range of correlation amplitude (not time but bin nr!)
     :param comparison_stop: end bin for comparison range of correlation amplitude (not time but bin nr!)
     :param n_comparison: nr of curves to average and to compare all other curves to
@@ -51,7 +138,7 @@ def main(
     :param channel_number_ch2: channel 2 of experiment (parallel), here: [2]
     :param make_plots: set "true" if images should be saved
     :param display_plot: set "true" if images should be displayed
-    :param g_factor: enter value of the g-factor calibrated fram a reference experiment
+    :param g_factor: enter value of the g-factor calibrated from a reference experiment
     :param time_window_size: averaging window in seconds
     :return:
     """
@@ -61,83 +148,125 @@ def main(
     basename = os.path.abspath(filename).split(".")[0]
     data = tttrlib.TTTR(filename, filetype)
     # rep rate = 80 MHz
-    header = data.get_header()
-    macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
-    macro_time_calibration_ms = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-    macro_times = data.get_macro_time()
-    micro_times = data.get_micro_time()
+    header = data.header
+    macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+    macro_times = data.macro_times
+    micro_times = data.micro_times
+    micro_time_resolution = data.header.micro_time_resolution
 
-    micro_time_resolution = header.micro_time_resolution
+    ########################################################
+    #  Select the indices of the events to be correlated
+    ########################################################
 
-    # the dtype to int64 otherwise numba jit has hiccups
-    green_s_indices = np.array(data.get_selection_by_channel(channel_number_ch1), dtype=np.int64)
-    indices_ch1 = functions_slice.get_indices_of_time_windows(
-        macro_times=macro_times,
-        selected_indices=green_s_indices,
-        macro_time_calibration=macro_time_calibration_ms,
-        time_window_size_seconds=time_window_size
-    )
+    green_s_indices = data.get_selection_by_channel([channel_number_ch1])
+    green_p_indices = data.get_selection_by_channel([channel_number_ch2])
 
-    green_p_indices = np.array(data.get_selection_by_channel(channel_number_ch2), dtype=np.int64)
-    indices_ch2 = functions_slice.get_indices_of_time_windows(
-        macro_times=macro_times,
-        selected_indices=green_p_indices,
-        macro_time_calibration=macro_time_calibration_ms,
-        time_window_size_seconds=time_window_size
-    )
+    nr_of_green_s_photons = len(green_s_indices)
+    nr_of_green_p_photons = len(green_p_indices)
 
-    correlation_curves_fine = functions_slice.correlate_pieces(
-        macro_times=macro_times,
-        indices_ch1=indices_ch1,
-        indices_ch2=indices_ch2,
-        micro_times=micro_times,
-        micro_time_resolution=micro_time_resolution,
-        macro_time_clock=macro_time_calibration_ns,
-        n_casc=n_casc_fine
-    )
+    # Get the start-stop indices of the data slices
+    time_windows = data.get_ranges_by_time_window(
+        time_window_size, macro_time_calibration=macro_time_calibration)
+    start_stop = time_windows.reshape((len(time_windows)//2, 2))
+    print(start_stop)
+    
+    ########################################################
+    #  Correlate the pieces
+    ########################################################
+
+    # Correlator settings, define the identical settings once
+    settings = {
+        "method": "default",
+        "n_bins": n_bins,  # n_bins and n_casc defines the settings of the multi-tau
+        "n_casc": n_casc_fine,  # correlation algorithm
+        "make_fine": True  # Use the microtime information
+    }
+
+    # Crosscorrelation
+    crosscorrelation = tttrlib.Correlator(**settings)
+    crosscorrelations = list()
+    nr_photons_ch1 = list()
+    nr_photons_ch2 = list()
+    for start, stop in start_stop:
+        indices = np.arange(start, stop, dtype=np.int64)
+        tttr_slice = data[indices]
+        tttr_ch1 = tttr_slice[tttr_slice.get_selection_by_channel([channel_number_ch1])]
+        tttr_ch2 = tttr_slice[tttr_slice.get_selection_by_channel([channel_number_ch2])]
+        crosscorrelation.set_tttr(
+            tttr_1=tttr_ch1,
+            tttr_2=tttr_ch2
+        )
+        crosscorrelations.append(
+            (crosscorrelation.x_axis, crosscorrelation.correlation)
+        )
+        photons_ch1 = len(tttr_ch1)
+        photons_ch2 = len(tttr_ch2)
+        nr_photons_ch1.append(photons_ch1)
+        nr_photons_ch2.append(photons_ch2)
+               
+    crosscorrelations = np.array(crosscorrelations)
+    nr_photons_ch1 = np.array(nr_photons_ch1)
+    nr_photons_ch2 = np.array(nr_photons_ch2)
 
     ########################################################
     #  Option: get autocorrelation curves
     ########################################################
+    
+    # Correlator settings, define the identical settings once
+    settings_acf = {
+        "method": "default",
+        "n_bins": n_bins,  # n_bins and n_casc defines the settings of the multi-tau
+        "n_casc": n_casc_coarse,  # correlation algorithm
+        "make_fine": True  # Use the microtime information
+    }
+    
+    # Autocorrelations
+    autocorr_ch1 = tttrlib.Correlator(**settings)
+    autocorrs_ch1 = list()
+    for start, stop in start_stop:
+        indices = np.arange(start, stop, dtype=np.int64)
+        tttr_slice = data[indices]
+        tttr_ch1 = tttr_slice[tttr_slice.get_selection_by_channel([channel_number_ch1])]
+        tttr_ch2 = tttr_slice[tttr_slice.get_selection_by_channel([channel_number_ch1])]
+        autocorr_ch1.set_tttr(
+            tttr_1=tttr_ch1,
+            tttr_2=tttr_ch2
+        )
+        autocorrs_ch1.append(
+            (autocorr_ch1.x_axis, autocorr_ch1.correlation)
+        )
 
-    autocorr_curve_ch1 = functions_slice.correlate_pieces(
-        macro_times=macro_times,
-        indices_ch1=indices_ch1,
-        indices_ch2=indices_ch1,
-        n_casc=n_casc_coarse
-    )
+    autocorrs_ch1 = np.array(autocorrs_ch1)
+     
+    autocorr_ch2 = tttrlib.Correlator(**settings)
+    autocorrs_ch2 = list()
+    for start, stop in start_stop:
+        indices = np.arange(start, stop, dtype=np.int64)
+        tttr_slice = data[indices]
+        tttr_ch1 = tttr_slice[tttr_slice.get_selection_by_channel([channel_number_ch2])]
+        tttr_ch2 = tttr_slice[tttr_slice.get_selection_by_channel([channel_number_ch2])]
+        autocorr_ch2.set_tttr(
+            tttr_1=tttr_ch1,
+            tttr_2=tttr_ch2
+        )
+        autocorrs_ch2.append(
+            (autocorr_ch2.x_axis, autocorr_ch2.correlation)
+        )
 
-    autocorr_curve_ch2 = functions_slice.correlate_pieces(
-        macro_times=macro_times,
-        indices_ch1=indices_ch2,
-        indices_ch2=indices_ch2,
-        micro_times=None,
-        micro_time_resolution=None,
-        macro_time_clock=None,
-        n_casc=n_casc_coarse
-    )
+    autocorrs_ch2 = np.array(autocorrs_ch2)
 
     ########################################################
-    #  Option: get average count rate per slice
+    #  Select the curves
     ########################################################
-    avg_countrate_ch1 = functions_slice.calculate_countrate(
-        timewindows=indices_ch1,
-        time_window_size_seconds=time_window_size
-    )
-
-    avg_countrate_ch2 = functions_slice.calculate_countrate(
-        timewindows=indices_ch2,
-        time_window_size_seconds=time_window_size
-    )
 
     # comparison is only made for the crosscorrelation curves
     # autocorrelation curves are calculated based on the curve_ids selected by crosscorr
-    correlation_amplitudes = correlation_curves_fine[:, 1, :]
+    correlation_amplitudes = crosscorrelations[:, 1, :]
     average_correlation_amplitude = correlation_amplitudes.mean(axis=0)
 
     # adjust comparison_start & stop according to your diffusion time
     # the selected values here encompass 1 ms -> 100 ms
-    deviation_from_mean = functions_slice.calculate_deviation(
+    deviation_from_mean = calculate_deviation(
         correlation_amplitudes=correlation_amplitudes,
         comparison_start=comparison_start,
         comparison_stop=comparison_stop,
@@ -145,7 +274,7 @@ def main(
     )
 
     # select the curves with a small enough deviation to be considered in the further analysis
-    selected_curves_idx = functions_slice.select_by_deviation(
+    selected_curves_idx = select_by_deviation(
         deviations=deviation_from_mean,
         d_max=deviation_max
     )
@@ -156,7 +285,7 @@ def main(
     selected_curves = list()
     for curve_idx in selected_curves_idx:
         selected_curves.append(
-            correlation_curves_fine[curve_idx]
+            correlation_amplitudes[curve_idx]
         )
 
     selected_curves = np.array(selected_curves)
@@ -169,7 +298,7 @@ def main(
     selected_curves_ch1 = list()
     for curve_idx in selected_curves_idx:
         selected_curves_ch1.append(
-            autocorr_curve_ch1[curve_idx]
+            autocorrs_ch1[curve_idx]
         )
     selected_curves_ch1 = np.array(selected_curves_ch1)
     avg_curve_ch1 = np.mean(selected_curves_ch1, axis=0)
@@ -178,7 +307,7 @@ def main(
     selected_curves_ch2 = list()
     for curve_idx in selected_curves_idx:
         selected_curves_ch2.append(
-            autocorr_curve_ch2[curve_idx]
+            autocorrs_ch2[curve_idx]
         )
     selected_curves_ch2 = np.array(selected_curves_ch2)
     avg_curve_ch2 = np.mean(selected_curves_ch2, axis=0)
@@ -187,14 +316,11 @@ def main(
     ########################################################
     #  Save correlation curve
     ########################################################
-    time_axis = avg_curve[0]
-    time_axis_acf = avg_curve_ch1[0] * macro_time_calibration_ms
-    avg_correlation_amplitude = avg_curve[1]  # 2nd column contains the average correlation amplitude calculated above
-    avg_correlation_amplitude_ch1 = avg_curve_ch1[1]
-    avg_correlation_amplitude_ch2 = avg_curve_ch2[1]
+    time_axis = crosscorrelations[0, 0] * 1000  # time axis in milliseconds
+    time_axis_acf = autocorrs_ch2[0, 0] * 1000  # time axis in milliseconds
     suren_column = np.zeros_like(time_axis)  # fill 3rd column with 0's for compatibility with ChiSurf
     suren_column_acf = np.zeros_like(time_axis_acf)
-    std_avg_correlation_amplitude = std_curve[1] / np.sqrt(len(selected_curves))
+    std_avg_correlation_amplitude = std_curve / np.sqrt(len(selected_curves))
     std_avg_correlation_amplitude_ch1 = std_curve_ch1[1] / np.sqrt(len(selected_curves))
     std_avg_correlation_amplitude_ch2 = std_curve_ch2[1] / np.sqrt(len(selected_curves))
     # 4th column contains standard deviation from the average curve calculated above
@@ -204,7 +330,7 @@ def main(
         np.vstack(
             [
                 time_axis,
-                average_correlation_amplitude,
+                avg_curve,
                 suren_column,
                 std_avg_correlation_amplitude
             ]
@@ -217,7 +343,7 @@ def main(
         np.vstack(
             [
                 time_axis_acf,
-                avg_correlation_amplitude_ch1,
+                avg_curve_ch1[1],
                 suren_column_acf,
                 std_avg_correlation_amplitude_ch1
             ]
@@ -231,7 +357,7 @@ def main(
         np.vstack(
             [
                 time_axis_acf,
-                avg_correlation_amplitude_ch2,
+                avg_curve_ch2[1],
                 suren_column_acf,
                 std_avg_correlation_amplitude_ch2
             ]
@@ -243,9 +369,9 @@ def main(
     #  Calculate steady-state anisotropy & save count rate per slice
     ########################################################
 
-    total_countrate = np.array(avg_countrate_ch2) + np.array(avg_countrate_ch2)
-    parallel_channel = np.array(avg_countrate_ch2)
-    perpendicular_channel = np.array(avg_countrate_ch1)
+    total_countrate = (nr_photons_ch1 + nr_photons_ch2) / time_window_size
+    parallel_channel = nr_photons_ch2 / time_window_size
+    perpendicular_channel = nr_photons_ch1 / time_window_size
     rss = (parallel_channel - g_factor * perpendicular_channel) / (parallel_channel + 2 * g_factor * perpendicular_channel)
 
     filename_average_count_rates = basename + average_count_rates_suffix
@@ -254,8 +380,8 @@ def main(
         np.vstack(
             [
                 total_countrate,
-                avg_countrate_ch1,
-                avg_countrate_ch2,
+                perpendicular_channel,
+                parallel_channel,
                 rss
             ]
         ).T,
@@ -289,15 +415,16 @@ def main(
         devx = np.arange(len(deviation_from_mean[0]))
 
         ax[0, 0].semilogy(devx, deviation_from_mean[0], label='deviations')
-        ax[0, 1].semilogx(time_axis, avg_correlation_amplitude, label='gs-gp')
-        ax[0, 1].semilogx(time_axis_acf, avg_correlation_amplitude_ch1, label='gs-gs')
-        ax[0, 1].semilogx(time_axis_acf, avg_correlation_amplitude_ch2, label='gp-gp')
-        ax[1, 0].plot(avg_countrate_ch1, label='CR gs(perpendicular)')
-        ax[1, 0].plot(avg_countrate_ch2, label='CR gp(parallel)')
+        ax[0, 1].semilogx(time_axis, avg_curve, label='gs-gp')
+        ax[0, 1].semilogx(time_axis_acf, avg_curve_ch1[1], label='gs-gs')
+        ax[0, 1].semilogx(time_axis_acf, avg_curve_ch2[1], label='gp-gp')
+        ax[1, 0].plot(perpendicular_channel, label='CR gs(perpendicular)')
+        ax[1, 0].plot(parallel_channel, label='CR gp(parallel)')
         ax[1, 1].plot(rss, label='rss')
 
         ax[0, 0].set_xlabel('slice #')
         ax[0, 0].set_ylabel('deviation')
+        ax[0, 1].set_ylim(ymin=1)
         ax[0, 1].set_xlabel('correlation time [ms]')
         ax[0, 1].set_ylabel('correlation amplitude')
         ax[1, 0].set_xlabel('slice #')
@@ -335,7 +462,7 @@ if __name__ == "__main__":
     settings = dict()
     with open(settings_file, 'r') as fp:
         settings.update(
-            yaml.load(fp.read())
+            yaml.load(fp.read(), Loader=yaml.FullLoader)
         )
     search_string = settings.pop('search_string')
     print("Compute correlations")

@@ -1,4 +1,4 @@
-search_string: '*.ptu'
+search_string: 'DNA10bpPIE_*.ptu'
 filetype: 'PTU'
 binning: 4
 ch1_suffix: '_green_s.txt'
@@ -7,10 +7,11 @@ ch3_suffix: '_red_s.txt'
 ch4_suffix: '_red_p.txt'
 channel_number_ch1: [0]
 channel_number_ch2: [2]
-channel_number_ch1: [1]
-channel_number_ch2: [3]
+channel_number_ch3: [1]
+channel_number_ch4: [3]
 make_plots: True
 display_plot: False
 jordi: True
 anisotropy: True
-g_factor: 0.98
+g_factor_green: 0.98
+g_factor_red: 0.98

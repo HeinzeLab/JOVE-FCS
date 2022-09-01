@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 #!/usr/bin/env python
 from __future__ import annotations
 import argparse
@@ -8,7 +14,6 @@ import yaml
 import numpy as np
 import pylab as p
 import tttrlib
-import functions_slice
 
 
 def main(
@@ -19,6 +24,7 @@ def main(
         ch2_suffix: str = '_green_p',
         channel_number_ch1: tuple = (0,),
         channel_number_ch2: tuple = (2,),
+        n_chunks: int = 3, 
         make_plots: bool = True,
         display_plot: bool = False,
         jordi: bool = True,
@@ -36,6 +42,7 @@ def main(
     :param ch2_suffix: suffix appended to saved results from channel 2
     :param channel_number_ch1: channel 1 of experiment (perpendicular), here: [0]
     :param channel_number_ch2: channel 2 of experiment (parallel), here: [2]
+    :param n_chunks: number of data slices
     :param make_plots: set "true" if images should be saved
     :param display_plot: set "true" if images should be displayed
     :param jordi: set "true" for jordi-format export (stacked parallel-perpendicular, no time axis)
@@ -49,12 +56,20 @@ def main(
     ########################################################
     basename = os.path.abspath(filename).split(".")[0]
     data = tttrlib.TTTR(filename, filetype)
-    header = data.get_header()
-    macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
-    macro_time_calibration = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-    macro_times = data.get_macro_time()
-    micro_times = data.get_micro_time()
-    micro_time_resolution = header.micro_time_resolution
+    header = data.header
+    macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+    macro_times = data.macro_times
+    micro_times = data.micro_times  # unit seconds
+    micro_time_resolution = data.header.micro_time_resolution
+    
+    duration = float(header.tag("TTResult_StopAfter")["value"])  # unit millisecond
+    duration_sec = duration / 1000
+    window_length = duration_sec / n_chunks  # in seconds
+
+    print("macro_time_calibration:", macro_time_calibration)
+    print("micro_time_resolution:", micro_time_resolution)
+    print("Duration [sec]:", duration_sec)
+    print("Time window lenght [sec]:", window_length)
 
     ########################################################
     #  Data rebinning (native resolution often too high, 16-32 ps sufficient)
@@ -62,7 +77,7 @@ def main(
 
     binning = binning  # Binning factor
     # This is the max nr of bins the data should contain:
-    expected_nr_of_bins = int(macro_time_calibration_ns // micro_time_resolution)
+    expected_nr_of_bins = int(macro_time_calibration // micro_time_resolution)
     # After binning the nr of bins is reduced:
     binned_nr_of_bins = int(expected_nr_of_bins // binning)
 
@@ -70,32 +85,22 @@ def main(
     #  Selecting time windows
     ########################################################
 
-    # the dtype to int64 otherwise numba jit has hiccups
-    green_s_indices = np.array(data.get_selection_by_channel(channel_number_ch1), dtype=np.int64)
-    indices_ch1 = functions_slice.get_indices_of_time_windows(
-        macro_times=macro_times,
-        selected_indices=green_s_indices,
-        macro_time_calibration=macro_time_calibration,
-        time_window_size_seconds=time_window_size
-    )
-
-    green_p_indices = np.array(data.get_selection_by_channel(channel_number_ch2), dtype=np.int64)
-    indices_ch2 = functions_slice.get_indices_of_time_windows(
-        macro_times=macro_times,
-        selected_indices=green_p_indices,
-        macro_time_calibration=macro_time_calibration,
-        time_window_size_seconds=time_window_size
-    )
+    # Get the start-stop indices of the data slices
+    time_windows = data.get_ranges_by_time_window(
+        window_length, macro_time_calibration=macro_time_calibration)
+    start_stop = time_windows.reshape((len(time_windows)//2, 2))
+    print(start_stop)
 
     ########################################################
     #  Histogram creation
     ########################################################
 
-    n_decays = min(len(indices_ch1), len(indices_ch2))
-
-    for i in range(n_decays):
-        green_s = micro_times[indices_ch1[i]]
-        green_p = micro_times[indices_ch2[i]]
+    i=0
+    for start, stop in start_stop:
+        indices = np.arange(start, stop, dtype=np.int64)
+        tttr_slice = data[indices]
+        green_s = micro_times[tttr_slice.get_selection_by_channel([channel_number_ch1])]
+        green_p = micro_times[tttr_slice.get_selection_by_channel([channel_number_ch2])]
         # Build the histograms
         green_s_counts = np.bincount(green_s // binning, minlength=binned_nr_of_bins)
         green_p_counts = np.bincount(green_p // binning, minlength=binned_nr_of_bins)
@@ -104,7 +109,7 @@ def main(
         green_s_counts_cut = green_s_counts[0:binned_nr_of_bins:]
         green_p_counts_cut = green_p_counts[0:binned_nr_of_bins:]
         # Build the time axis
-        dt = header.micro_time_resolution
+        dt = micro_time_resolution * 1e9  # unit nanoseconds
         x_axis = np.arange(green_s_counts_cut.shape[0]) * dt * binning  # identical for data from same time window
 
         ########################################################
@@ -167,6 +172,8 @@ def main(
                 if display_plot:
                     p.show()
                 p.close()
+                
+        i+=1
 
 
 if __name__ == "__main__":
@@ -189,7 +196,7 @@ if __name__ == "__main__":
     settings = dict()
     with open(settings_file, 'r') as fp:
         settings.update(
-            yaml.load(fp.read())
+            yaml.load(fp.read(), Loader=yaml.FullLoader)
         )
     search_string = settings.pop('search_string')
     print("Compute decays")

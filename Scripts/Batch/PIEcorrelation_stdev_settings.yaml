@@ -11,5 +11,6 @@ red_channel_ch1: 1
 red_channel_ch2: 3
 n_casc: 25
 n_bins: 9
+n_chunks: 3
 make_plots: True
 display_plot: False
