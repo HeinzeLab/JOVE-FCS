@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 import numpy as np
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
@@ -12,11 +18,11 @@ import matplotlib.pyplot as plt
 ########################################################
 
 # define the data set: complete data paths to both data sets
-parallel_channel = r'\\HC1008\Users\AG Heinze\DATA\FCSSetup\2021\20210420_ SC_eGFP_CT _NT_SNAPsptw\Decays\A568\Red decay_p_delay.txt'
-perpendicular_channel = r'\\HC1008\Users\AG Heinze\DATA\FCSSetup\2021\20210420_ SC_eGFP_CT _NT_SNAPsptw\Decays\A568\Red decay_s_delay.txt'
+parallel_channel = 'A488_p.txt'
+perpendicular_channel = 'A488_s.txt'
 
 # define save path of results
-save_path = '//HC1008/Users/AG Heinze/DATA/FCSSetup/2021/20210420_ SC_eGFP_CT _NT_SNAPsptw/Decays/A568'
+save_path = 'C:/Users/kah73xs/PycharmProjects/scripts'
 
 # Define function for select fit range by clicking on the figure
 def find_nearest(array,value):
@@ -104,6 +110,6 @@ plt.xlabel('time [ns]')
 plt.ylabel('Counts')
 plt.legend()
 plt.show()
-fig2.savefig(save_path + 'g-factor.png', format="png")
+fig2.savefig(save_path + '_g-factor.png', format="png")
 
 

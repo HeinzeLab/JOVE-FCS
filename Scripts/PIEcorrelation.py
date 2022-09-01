@@ -1,9 +1,16 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
+#!/usr/bin/env python
+
 from __future__ import annotations
 
 import numpy as np
 import pylab as p
 import tttrlib
-import functions
 
 ########################################################
 #  This script correlates the specified data set
@@ -12,12 +19,13 @@ import functions
 #  Image is also saved in svg-format
 ########################################################
 #  Input parameter
-data = tttrlib.TTTR('DNA10bpPIE.ptu', 'PTU')   # file to be read
+data = tttrlib.TTTR('C:/Users/kah73xs/PycharmProjects/scripts/DNA10bpPIE_1.ptu', 'PTU')   # file to be read
 green_channel1 = 0  # green correlation channel 1, can be one or multiple, e.g. [0,2]
 green_channel2 = 2  # green correlation channel 2, can be one or multiple, e.g. [0,2]
 red_channel1 = 1  # red correlation channel 1, can be one or multiple, e.g. [0,2]
 red_channel2 = 3  # red correlation channel 2, can be one or multiple, e.g. [0,2]
-n_correlation_casc = 25  # number of correlation cascades, increase for increasing lag-times
+n_casc = 25  # n_bins and n_casc defines the settings of the multi-tau
+n_bins = 9  # correlation algorithm
 save_PIEcrosscorrelation_as = "PIE_CCF"  # filename for CCF of green-prompt and red-delay
 save_FRETcrosscorrelation_as = "FRET_CCF"  # filename for CCF of green-prompt and red-prompt
 save_ACF_green_prompt_as = "ACF_green_prompt"  # filename for ACF green-prompt
@@ -29,18 +37,15 @@ save_figure_as = "correlation"  # filename for saving of figure
 #  Read information from header
 ########################################################
 
-header = data.get_header()
-header_data = header.data
-macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
-macro_time_calibration_ms = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-micro_time_resolution = header.micro_time_resolution
-macro_times = data.get_macro_time()
-micro_times = data.get_micro_time()
-number_of_bins = macro_time_calibration_ns/micro_time_resolution
+header = data.header
+macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+micro_time_resolution = data.header.micro_time_resolution
+macro_times = data.macro_times
+micro_times = data.micro_times
+number_of_bins = macro_time_calibration/micro_time_resolution
 PIE_windows_bins = int(number_of_bins/2)
 
-print("macro_time_calibration_ns:", macro_time_calibration_ns)
-print("macro_time_calibration_ms:", macro_time_calibration_ms)
+print("macro_time_calibration_sec:", macro_time_calibration)
 print("micro_time_resolution_ns:", micro_time_resolution)
 print("number_of_bins:", number_of_bins)
 print("PIE_windows_bins:", PIE_windows_bins)
@@ -49,75 +54,105 @@ print("PIE_windows_bins:", PIE_windows_bins)
 #  Indices of data to correlate
 ########################################################
 
-# the dtype to int64 otherwise numba jit has hiccups
-all_green_indices = np.array(data.get_selection_by_channel([green_channel1, green_channel2]), dtype=np.int64)
-all_red_indices = np.array(data.get_selection_by_channel([red_channel1, red_channel2]), dtype=np.int64)
-green_indices1 = np.array(data.get_selection_by_channel([green_channel1]), dtype=np.int64)
-green_indices2 = np.array(data.get_selection_by_channel([green_channel2]), dtype=np.int64)
-red_indices1 = np.array(data.get_selection_by_channel([red_channel1]), dtype=np.int64)
-red_indices2 = np.array(data.get_selection_by_channel([red_channel2]), dtype=np.int64)
+all_green_indices = data.get_selection_by_channel([green_channel1, green_channel2])
+all_red_indices = data.get_selection_by_channel([red_channel1, red_channel2])
+green_indices1 = data.get_selection_by_channel([green_channel1])
+green_indices2 = data.get_selection_by_channel([green_channel2])
+red_indices1 = data.get_selection_by_channel([red_channel1])
+red_indices2 = data.get_selection_by_channel([red_channel2])
 
 ########################################################
 #  Correlate
 ########################################################
+# Correlator settings, define the identical settings once
+settings = {
+    "method": "default",
+    "n_bins": n_bins,  # n_bins and n_casc defines the settings of the multi-tau
+    "n_casc": n_casc,  # correlation algorithm
+    "make_fine": False  # Do not use the microtime information
+}
 
-PIEcrosscorrelation_curve = functions.correlatePIE(
-    micro_times=micro_times,
-    macro_times=macro_times,
-    indices_ch1=all_green_indices,
-    indices_ch2=all_red_indices,
-    PIE_windows_bins=PIE_windows_bins,
-    n_casc=n_correlation_casc
-)
+# Select macrotimes for crosscorrelations
+t_green = macro_times[all_green_indices]
+t_red = macro_times[all_red_indices]
 
-FRETcrosscorrelation_curve = functions.correlate_prompt(
-    micro_times=micro_times,
-    macro_times=macro_times,
-    indices_ch1=all_green_indices,
-    indices_ch2=all_red_indices,
-    PIE_windows_bins=PIE_windows_bins,
-    n_casc=n_correlation_casc
-)
+# Select microtimes for crosscorrelations
+mt_green = micro_times[all_green_indices]
+mt_red = micro_times[all_red_indices]
 
-autocorr_prompt_g = functions.correlate_prompt(
-    micro_times=micro_times,
-    macro_times=macro_times,
-    indices_ch1=green_indices1,
-    indices_ch2=green_indices2,
-    PIE_windows_bins=PIE_windows_bins,
-    n_casc=n_correlation_casc
-)
+# Define and apply weights
+w_gp = np.ones_like(t_green, dtype=float)
+w_gp[np.where(mt_green > PIE_windows_bins)] *= 0.0
+w_rp = np.ones_like(t_red, dtype=float)
+w_rp[np.where(mt_red > PIE_windows_bins)] *= 0.0
+w_rd = np.ones_like(t_red, dtype=float)
+w_rd[np.where(mt_red < PIE_windows_bins)] *= 0.0
 
-autocorr_prompt_r = functions.correlate_prompt(
-    micro_times=micro_times,
-    macro_times=macro_times,
-    indices_ch1=red_indices1,
-    indices_ch2=red_indices2,
-    PIE_windows_bins=PIE_windows_bins,
-    n_casc=n_correlation_casc
-)
+# PIE crosscorrelation (green prompt - red delay)
+PIEcorrelation_curve = tttrlib.Correlator(**settings)
+PIEcorrelation_curve.set_events(t_green, w_gp, t_red, w_rd)
 
-autocorr_delay_r = functions.correlate_delay(
-    micro_times=micro_times,
-    macro_times=macro_times,
-    indices_ch1=red_indices1,
-    indices_ch2=red_indices2,
-    PIE_windows_bins=PIE_windows_bins,
-    n_casc=n_correlation_casc
-)
+PIE_time_axis = PIEcorrelation_curve.x_axis
+PIE_amplitude = PIEcorrelation_curve.correlation
+
+# FRET crosscorrelation
+FRETcrosscorrelation_curve = tttrlib.Correlator(**settings)
+FRETcrosscorrelation_curve.set_events(t_green, w_gp, t_red, w_rp)
+
+FRET_time_axis = FRETcrosscorrelation_curve.x_axis
+FRET_amplitude = FRETcrosscorrelation_curve.correlation
+
+# Select macrotimes for autocorrelations
+t_green1 = macro_times[green_indices1]
+t_green2 = macro_times[green_indices2]
+t_red1 = macro_times[red_indices1]
+t_red2 = macro_times[red_indices2]
+
+# Select microtimes for autocorrelation
+mt_green1 = micro_times[green_indices1]
+mt_green2 = micro_times[green_indices2]
+mt_red1 = micro_times[red_indices1]
+mt_red2 = micro_times[red_indices2]
+
+# Define and apply weights
+w_g1 = np.ones_like(t_green1, dtype=float)
+w_g1[np.where(mt_green1 > PIE_windows_bins)] *= 0.0
+w_g2 = np.ones_like(t_green2, dtype=float)
+w_g2[np.where(mt_green2 > PIE_windows_bins)] *= 0.0
+
+w_r1p = np.ones_like(t_red1, dtype=float)
+w_r1p[np.where(mt_red1 > PIE_windows_bins)] *= 0.0
+w_r2p = np.ones_like(t_red2, dtype=float)
+w_r2p[np.where(mt_red2 > PIE_windows_bins)] *= 0.0
+
+w_r1d = np.ones_like(t_red1, dtype=float)
+w_r1d[np.where(mt_red1 < PIE_windows_bins)] *= 0.0
+w_r2d = np.ones_like(t_red2, dtype=float)
+w_r2d[np.where(mt_red2 < PIE_windows_bins)] *= 0.0
+
+autocorr_prompt_g = tttrlib.Correlator(**settings)
+autocorr_prompt_g.set_events(t_green1, w_g1, t_green2, w_g2)
+
+autocorr_prompt_r = tttrlib.Correlator(**settings)
+autocorr_prompt_r.set_events(t_red1, w_r1p, t_red2, w_r2p)
+
+autocorr_delay_r = tttrlib.Correlator(**settings)
+autocorr_delay_r.set_events(t_red1, w_r1d, t_red2, w_r2d)
+
+ACF_prompt_g_time_axis = autocorr_prompt_g.x_axis
+ACF_prompt_g_amplitude = autocorr_prompt_g.correlation
+
+ACF_prompt_r_time_axis = autocorr_prompt_r.x_axis
+ACF_prompt_r_amplitude = autocorr_prompt_r.correlation
+
+ACF_delay_r_time_axis = autocorr_delay_r.x_axis
+ACF_delay_r_amplitude = autocorr_delay_r.correlation
 
 ########################################################
 #  Save correlation curve
 ########################################################
-# calculates the correct time axis by multiplication of x-axis with macro_time
-time_axis = PIEcrosscorrelation_curve[0] * macro_time_calibration_ms
-
-# 2nd column contains the correlation amplitude
-PIEcrosscorrelation = PIEcrosscorrelation_curve[1]
-FRETcrosscorrelation = FRETcrosscorrelation_curve[1]
-autocorrelation_green_prompt = autocorr_prompt_g[1]
-autocorrelation_red_prompt = autocorr_prompt_r[1]
-autocorrelation_red_delay = autocorr_delay_r[1]
+# bring the time axis to miliseconds
+time_axis = PIE_time_axis * macro_time_calibration *1000
 
 # fill 3rd column with 0's for compatibility with ChiSurf & Kristine
 # 1st and 2nd entry of 3rd column are measurement duration & average countrate
@@ -127,7 +162,7 @@ suren_column_gp = np.zeros_like(time_axis)
 suren_column_rp = np.zeros_like(time_axis)
 suren_column_rd = np.zeros_like(time_axis)
 
-duration = float(header_data["TTResult_StopAfter"])  # unit millisecond
+duration = float(header.tag("TTResult_StopAfter")["value"])  # unit millisecond
 duration_sec = duration / 1000
 
 all_green_photons = micro_times[all_green_indices]
@@ -163,7 +198,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis,
-            PIEcrosscorrelation,
+            PIE_amplitude,
             suren_columnPIE
          ]
     ).T,
@@ -176,7 +211,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis,
-            FRETcrosscorrelation,
+            FRET_amplitude,
             suren_columnFRET
          ]
     ).T,
@@ -190,7 +225,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis,
-            autocorrelation_green_prompt,
+            ACF_prompt_g_amplitude,
             suren_column_gp
          ]
     ).T,
@@ -203,7 +238,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis,
-            autocorrelation_red_prompt,
+            ACF_prompt_r_amplitude,
             suren_column_rp
          ]
     ).T,
@@ -216,7 +251,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis,
-            autocorrelation_red_delay,
+            ACF_delay_r_amplitude,
             suren_column_rd
          ]
     ).T,
@@ -227,12 +262,13 @@ np.savetxt(
 #  Plotting
 ########################################################
 
-p.semilogx(time_axis, PIEcrosscorrelation, label='PIE (gp-rd)')
-p.semilogx(time_axis, autocorrelation_red_prompt, label='Red prompt')
-p.semilogx(time_axis, autocorrelation_green_prompt, label='Green prompt')
-p.semilogx(time_axis, autocorrelation_red_delay, label='Red delay')
-p.semilogx(time_axis, FRETcrosscorrelation, label='FRET (gp-rp)')
+p.semilogx(time_axis, PIE_amplitude, label='PIE (gp-rd)')
+p.semilogx(time_axis, ACF_prompt_r_amplitude, label='Red prompt')
+p.semilogx(time_axis, ACF_prompt_g_amplitude, label='Green prompt')
+p.semilogx(time_axis, ACF_delay_r_amplitude, label='Red delay')
+p.semilogx(time_axis, FRET_amplitude, label='FRET (gp-rp)')
 
+p.ylim(ymin=1)
 p.xlabel('correlation time [ms]')
 p.ylabel('correlation amplitude')
 p.legend()

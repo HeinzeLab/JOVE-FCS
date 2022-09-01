@@ -1,14 +1,18 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 import tttrlib
 import pylab as p
 import numpy as np
-import functions_slice
-
 
 ########################################################
 #  Data input & reading
 ########################################################
 
-data = tttrlib.TTTR('HEK 293T b2Ar.ptu', 'PTU')
+data = tttrlib.TTTR('A488_1.ptu', 'PTU')
 channel_1 = 0  # usually perpendicular channel (VH, s)
 channel_2 = 2  # usually parallel channel (VV, p)
 binning_factor = 4  # 1 = no binning, reduces histogram resolution by rebinning of channels
@@ -17,18 +21,26 @@ save_filename_channel_2 = "Decay_p"
 save_figure = "Decay"
 jordi_format = True  # True if jordi format (p-s stacked vertically) should be saved additionally
 save_filename_jordi = "jordi"
-time_window_size = 59
+n_chunks = 3 # number of pieces the data is to be split into
 
 ########################################################
 #  Read data & header
 ########################################################
 
-header = data.get_header()
-macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
-macro_time_calibration = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-macro_times = data.get_macro_time()
-micro_times = data.get_micro_time()
-micro_time_resolution = header.micro_time_resolution
+header = data.header
+macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+macro_times = data.macro_times
+micro_times = data.micro_times  # unit seconds
+micro_time_resolution = data.header.micro_time_resolution
+
+duration = float(header.tag("TTResult_StopAfter")["value"])  # unit millisecond
+duration_sec = duration / 1000
+window_length = duration_sec / n_chunks  # in seconds
+
+print("macro_time_calibration:", macro_time_calibration)
+print("micro_time_resolution:", micro_time_resolution)
+print("Duration [sec]:", duration_sec)
+print("Time window lenght [sec]:", window_length)
 
 ########################################################
 #  Data rebinning (native resolution often too high, 16-32 ps sufficient)
@@ -36,7 +48,7 @@ micro_time_resolution = header.micro_time_resolution
 
 binning = binning_factor  # Binning factor
 # This is the max nr of bins the data should contain:
-expected_nr_of_bins = int(macro_time_calibration_ns//micro_time_resolution)
+expected_nr_of_bins = int(macro_time_calibration//micro_time_resolution)
 # After binning the nr of bins is reduced:
 binned_nr_of_bins = int(expected_nr_of_bins//binning)
 
@@ -44,31 +56,21 @@ binned_nr_of_bins = int(expected_nr_of_bins//binning)
 #  Selecting time windows
 ########################################################
 
-green_1_indices = np.array(data.get_selection_by_channel([channel_1]), dtype=np.int64)
-indices_ch1 = functions_slice.get_indices_of_time_windows(
-    macro_times=macro_times,
-    selected_indices=green_1_indices,
-    macro_time_calibration=macro_time_calibration,
-    time_window_size_seconds=time_window_size
-)
-
-green_2_indices = np.array(data.get_selection_by_channel([channel_2]), dtype=np.int64)
-indices_ch2 = functions_slice.get_indices_of_time_windows(
-    macro_times=macro_times,
-    selected_indices=green_2_indices,
-    macro_time_calibration=macro_time_calibration,
-    time_window_size_seconds=time_window_size
-)
+# Get the start-stop indices of the data slices
+time_windows = data.get_ranges_by_time_window(
+    window_length, macro_time_calibration=macro_time_calibration)
+start_stop = time_windows.reshape((len(time_windows)//2, 2))
+print(start_stop)
 
 ########################################################
 #  Histogram creation
 ########################################################
-
-n_decays = min(len(indices_ch1), len(indices_ch2))
-
-for i in range(n_decays):
-    green_s = micro_times[indices_ch1[i]]
-    green_p = micro_times[indices_ch2[i]]
+i=0
+for start, stop in start_stop:
+    indices = np.arange(start, stop, dtype=np.int64)
+    tttr_slice = data[indices]
+    green_s = micro_times[tttr_slice.get_selection_by_channel([channel_1])]
+    green_p = micro_times[tttr_slice.get_selection_by_channel([channel_2])]
     # Build the histograms
     green_s_counts = np.bincount(green_s // binning, minlength=binned_nr_of_bins)
     green_p_counts = np.bincount(green_p // binning, minlength=binned_nr_of_bins)
@@ -77,7 +79,7 @@ for i in range(n_decays):
     green_s_counts_cut = green_s_counts[0:binned_nr_of_bins:]
     green_p_counts_cut = green_p_counts[0:binned_nr_of_bins:]
     # Build the time axis
-    dt = header.micro_time_resolution
+    dt = micro_time_resolution * 1e9  # unit nanoseconds
     x_axis = np.arange(green_s_counts_cut.shape[0]) * dt * binning  # identical for data from same time window
 
     ########################################################
@@ -113,3 +115,5 @@ for i in range(n_decays):
             output_filename,
             np.vstack([jordi_counts_green]).T
         )
+        
+    i+=1

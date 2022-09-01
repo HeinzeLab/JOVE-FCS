@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 #!/usr/bin/env python
 
 from __future__ import annotations
@@ -13,12 +19,12 @@ import tttrlib
 #  It considers PIE "prompt" and "delay" time windows.
 ########################################################
 
-path = r"\\HC1008\AG Heinze\DATA\FCSSetup\2021\20210409_JK_B2AR_Carazol,ICI\PTU\*.ptu"
+path = "DNA*.ptu"
 channel1 = [0]  # usually green perpendicular
 channel2 = [2]  # usually green parallel
 channel3 = [1]  # usually red perpendicular
 channel4 = [3]  # usually red parallel
-save_file_as = r"\\HC1008\AG Heinze\DATA\FCSSetup\2021\20210409_JK_B2AR_Carazol,ICI\avg_countrate.txt"
+save_file_as = "avg_countrate.txt"
 
 # initialize list of parameter to be saved at the end
 list_filenames = list()  # filenames
@@ -33,13 +39,12 @@ list_cr_red_ch2_delay = list()  # countrate red channel 2 in kHz, delay time win
 # loop of the whole folder and calculate the countrates
 for file in glob.glob(path):
     data = tttrlib.TTTR(file, 'PTU')  # read information from data file
-    header = data.get_header()
-    header_data = header.data
-    micro_time_resolution = header.micro_time_resolution
-    macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
+    header = data.header
+    micro_time_resolution = data.header.micro_time_resolution
+    macro_time_calibration_ns = data.header.macro_time_resolution  # unit nanoseconds
     macro_time_calibration_ms = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-    micro_times = data.get_micro_time()  # get micro times
-    macro_times = data.get_macro_time()  # get macro times
+    micro_times = data.micro_times  # get micro times
+    macro_times = data.macro_times  # get macro times
     number_of_bins = macro_time_calibration_ns / micro_time_resolution  # determine number of TAC histogram bins
     PIE_windows_bins = int(number_of_bins / 2)  # TAC windows is split 50:50 into prompt and delay window
 
@@ -64,7 +69,7 @@ for file in glob.glob(path):
     nr_of_red_p_photons_delay = (np.array(np.where(red_p_indices_mt > PIE_windows_bins), dtype=np.int64)).size
 
     # determine the measurement time in seconds
-    duration = float(header_data["TTResult_StopAfter"])  # unit millisecond
+    duration = float(header.tag("TTResult_StopAfter")["value"])  # unit millisecond
     duration_sec = duration / 1000  # convert time to seconds
 
     # the average countrate in kHz is calculated by dividing the number of collected photons in the respective channel

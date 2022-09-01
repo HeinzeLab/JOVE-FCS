@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 import tttrlib
 import pylab as p
 import numpy as np
@@ -9,22 +15,22 @@ import glob
 #  Image is also saved in svg-format
 ########################################################
 #  Input parameter
-search_term = "//HC1008/Users/AG Heinze/DATA/FCSSetup/2021/20210428_SC_CT SNAP/NT-SNAP_cell1_*.ptu"  # * marks variable area of file name
+search_term = "DNA10bpPIE_*.ptu"  # * marks variable area of file name
 channel_1 = 0  # usually green perpendicular channel (VH, s)
 channel_2 = 2  # usually green parallel channel (VV, p)
 channel_3 = 1  # usually red perpendicular channel (VH, s)
 channel_4 = 3  # usually red parallel channel (VV, p)
-binning_factor = 4  # 1 = no binning, reduces histogram resolution by rebinning of channels
-save_filename_green_prompt_ch1 = "Green decay_s.txt"
-save_filename_green_prompt_ch2 = "Green decay_p.txt"
+binning_factor = 64  # 1 = no binning, reduces histogram resolution by rebinning of channels
+save_filename_green_prompt_ch1 = "IRF_Green decay_s.txt"
+save_filename_green_prompt_ch2 = "IRF_Green decay_p.txt"
 save_filename_red_prompt_ch1 = "Red decay_s_prompt.txt"
 save_filename_red_prompt_ch2 = "Red decay_p_prompt.txt"
 save_filename_red_delay_ch1 = "Red decay_s_delay.txt"
 save_filename_red_delay_ch2 = "Red decay_p_delay.txt"
-save_figure_green = "Decay_green"
+save_figure_green = "IRF_Decay_green"
 save_figure_red = "Decay_red"
 jordi_format = True  # True if jordi format (p-s stacked vertically) should be saved additionally
-save_filename_jordi_green = "jordi_green.txt"
+save_filename_jordi_green = "IRF_jordi_green.txt"
 save_filename_jordi_red_prompt = "jordi_red_prompt.txt"
 save_filename_jordi_red_delay = "jordi_red_delay.txt"
 
@@ -36,10 +42,10 @@ save_filename_jordi_red_delay = "jordi_red_delay.txt"
 filename = glob.glob(search_term)  # search term: which files should be joined
 first_curve = filename[0]
 data = tttrlib.TTTR(first_curve, 'PTU')
-header = data.get_header()
-macro_time_calibration = header.macro_time_resolution  # unit nanoseconds
-micro_times = data.get_micro_time()
-micro_time_resolution = header.micro_time_resolution
+header = data.header
+macro_time_calibration = data.header.macro_time_resolution  # unit nanoseconds
+micro_times = data.micro_times  # unit seconds
+micro_time_resolution = data.header.micro_time_resolution
 
 data_sets = [tttrlib.TTTR(fn, 'PTU') for fn in filename[0:]]
 ch1_list = list()
@@ -113,7 +119,7 @@ for ds in data_sets:
     ch4_delay_list.append(np.array(red_p_counts_cut_delay))
 
 # Build the time axis
-dt = header.micro_time_resolution
+dt = micro_time_resolution * 1e9  # unit nanoseconds
 x_axis = np.arange(binned_nr_of_bins) * dt * binning_factor  # identical for data from same time window
 x_axis_prompt = x_axis[0:binned_nr_of_bins//2:]
 x_axis_delay = x_axis[binned_nr_of_bins//2::]

@@ -1,9 +1,16 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
+#!/usr/bin/env python
+
 from __future__ import annotations
 
 import numpy as np
 import pylab as p
 import tttrlib
-import functions_slice
 import glob
 
 ########################################################
@@ -13,10 +20,11 @@ import glob
 #  Image is also saved in svg-format
 ########################################################
 #  Input parameter
-search_term = "//HC1008/Users/AG Heinze/DATA/FCSSetup/2021/20210207_SC_Calibrationsptw/DATA/IRF_10mhz_*.ptu"  # * marks variable area of file name
-correlation_channel1 = [0]  # correlation channel 1, can be one or multiple, e.g. [0,2]
-correlation_channel2 = [2]  # correlation channel 2, can be one or multiple, e.g. [0,2]
-n_correlation_casc = 25  # number of correlation cascades, increase for increasing lag-times
+search_term = 'C:/Users/kah73xs/PycharmProjects/scripts/A488_*ptu'  # * marks variable area of file name
+correlation_channel1 = 0  # correlation channel 1, can be one or multiple, e.g. [0,2]
+correlation_channel2 = 2  # correlation channel 2, can be one or multiple, e.g. [0,2]
+n_casc = 25  # n_bins and n_casc defines the settings of the multi-tau
+n_bins = 9  # correlation algorithm
 save_crosscorrelation_as = "ch0_ch2_cross"  # filename for crosscorrelation curve
 save_autocorrelation1_as = "ch0_auto"  # filename for autocorrelation curve, channel 1
 save_autocorrelation2_as = "ch2_auto"  # filename for autocorrelation curve, channel 2
@@ -44,83 +52,90 @@ for ds in data_sets:
     #  Indices of data to correlate
     ########################################################
     data = tttrlib.TTTR(ds)
-    header = data.get_header()
-    header_data = header.data
-    micro_times = data.get_micro_time()
-    micro_time_resolution = header.micro_time_resolution
-    macro_time_calibration_ns = header.macro_time_resolution  # unit nanoseconds
-    macro_time_calibration_ms = macro_time_calibration_ns / 1e6  # macro time calibration in milliseconds
-    macro_times = data.get_macro_time()
+    header = data.header
+    micro_times = data.micro_times
+    micro_time_resolution = data.header.micro_time_resolution
+    macro_time_calibration = data.header.macro_time_resolution  # unit seconds
+    macro_times = data.macro_times
 
-    green_s_indices = np.array(data.get_selection_by_channel([0]), dtype=np.int64)
-    green_p_indices = np.array(data.get_selection_by_channel([2]), dtype=np.int64)
+    green_s_indices = data.get_selection_by_channel([0])
+    green_p_indices = data.get_selection_by_channel([2])
     nr_of_green_s_photons += len(green_s_indices)
     nr_of_green_p_photons += len(green_p_indices)
-    duration = float(header_data["TTResult_StopAfter"])  # unit millisecond
+    duration = float(header.tag("TTResult_StopAfter")["value"])   # unit millisecond
     total_duration += duration
 
     ########################################################
     #  Correlate
     ########################################################
-
-    crosscorrelation_curve_fine = functions_slice.correlate(
-        macro_times=macro_times,
-        indices_ch1=green_s_indices,
-        indices_ch2=green_p_indices,
-        micro_times=micro_times,
-        micro_time_resolution=micro_time_resolution,
-        macro_time_clock=macro_time_calibration_ns,
-        n_casc=37
+    # Correlator settings, define the identical settings once
+    settings_fine = {
+        "method": "default",
+        "n_bins": n_bins,  # n_bins and n_casc defines the settings of the multi-tau
+        "n_casc": n_casc,  # correlation algorithm
+        "make_fine": True  # Do not use the microtime information
+    }
+    
+    # Crosscorrelation
+    crosscorrelation_curve = tttrlib.Correlator(
+        channels=([correlation_channel1], [correlation_channel2]),
+        tttr=data,
+        **settings_fine
     )
+    
+    crosscorrelation = crosscorrelation_curve.correlation
+    cross_list.append(np.array(crosscorrelation))
 
-    cross_list.append(np.array(crosscorrelation_curve_fine))
-
-    autocorr_curve_ch1 = functions_slice.correlate(
-        macro_times=macro_times,
-        indices_ch1=green_s_indices,
-        indices_ch2=green_s_indices,
-        n_casc=25
+    # Correlator settings, define the identical settings once
+    settings_acf = {
+        "method": "default",
+        "n_bins": n_bins,  # n_bins and n_casc defines the settings of the multi-tau
+        "n_casc": n_casc,  # correlation algorithm
+        "make_fine": False  # Do not use the microtime information
+    }
+    
+    # Autocorrelation channel 1
+    autocorr_curve_ch1 = tttrlib.Correlator(
+        channels=([correlation_channel1], [correlation_channel1]),
+        tttr=data,
+        **settings_acf
     )
-    acf1_list.append(np.array(autocorr_curve_ch1))
-
-    autocorr_curve_ch2 = functions_slice.correlate(
-        macro_times=macro_times,
-        indices_ch1=green_p_indices,
-        indices_ch2=green_p_indices,
-        n_casc=25
+    
+    autocorrelation_ch1 = autocorr_curve_ch1.correlation
+    acf1_list.append(np.array(autocorrelation_ch1))
+    
+    # Autocorrelation channel 2
+    autocorr_curve_ch2 = tttrlib.Correlator(
+        channels=([correlation_channel2], [correlation_channel2]),
+        tttr=data,
+        **settings_acf
     )
-    acf2_list.append(np.array(autocorr_curve_ch2))
+    
+    autocorrelation_ch2 = autocorr_curve_ch2.correlation
+    acf2_list.append(np.array(autocorrelation_ch2))
 
 ########################################################
 #  Get mean and standard deviation
 ########################################################
 
 correlation_amplitude = np.array(cross_list)
-corr_amplitudes = correlation_amplitude[:, 1, :]
-average_correlation_amplitude = corr_amplitudes.mean(axis=0)
-std_correlation_amplitude = corr_amplitudes.std(axis=0)
+average_correlation_amplitude = correlation_amplitude.mean(axis=0)
+std_correlation_amplitude = correlation_amplitude.std(axis=0)
 
 autocorr1_amplitude = np.array(acf1_list)
-curves_ch1 = autocorr1_amplitude[:, 1, :]
-avg_curve_ch1 = np.mean(curves_ch1, axis=0)
-std_curve_ch1 = np.std(curves_ch1, axis=0)
+avg_curve_ch1 = np.mean(autocorr1_amplitude, axis=0)
+std_curve_ch1 = np.std(autocorr1_amplitude, axis=0)
 
 autocorr2_amplitude = np.array(acf2_list)
-curves_ch2 = autocorr2_amplitude[:, 1, :]
-avg_curve_ch2 = np.mean(curves_ch2, axis=0)
-std_curve_ch2 = np.std(curves_ch2, axis=0)
+avg_curve_ch2 = np.mean(autocorr2_amplitude, axis=0)
+std_curve_ch2 = np.std(autocorr2_amplitude, axis=0)
 
 ########################################################
 #  Save correlation curves
 ########################################################
 # calculate the correct time axis by multiplication of x-axis with macro_time
-time_axis = correlation_amplitude[0, 0, :]
-time_axis_acf = autocorr1_amplitude[0, 0, :] * macro_time_calibration_ms
-
-# 2nd column contains the average correlation amplitude calculated above
-avg_correlation_amplitude = average_correlation_amplitude
-avg_correlation_amplitude_ch1 = avg_curve_ch1
-avg_correlation_amplitude_ch2 = avg_curve_ch2
+time_axis = crosscorrelation_curve.x_axis *1000
+time_axis_acf = autocorr_curve_ch1.x_axis *1000
 
 # fill 3rd column with 0's for compatibility with ChiSurf & Kristine
 # 1st and 2nd entry of 3rd column are measurement duration & average countrate
@@ -167,7 +182,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis_acf,
-            avg_correlation_amplitude_ch1,
+            avg_curve_ch1,
             suren_column_acf1,
             std_avg_correlation_amplitude_ch1
          ]
@@ -181,7 +196,7 @@ np.savetxt(
     np.vstack(
         [
             time_axis_acf,
-            avg_correlation_amplitude_ch2,
+            avg_curve_ch2,
             suren_column_acf2,
             std_avg_correlation_amplitude_ch2
          ]
@@ -192,10 +207,11 @@ np.savetxt(
 ########################################################
 #  Plot & save figure
 ########################################################
-p.semilogx(time_axis, avg_correlation_amplitude, label='gs-gp')
+p.semilogx(time_axis, average_correlation_amplitude, label='gs-gp')
 p.semilogx(time_axis_acf, avg_curve_ch1, label='gs-gs')
 p.semilogx(time_axis_acf, avg_curve_ch2, label='gp-gp')
 
+p.ylim(ymin=1)
 p.xlabel('correlation time [ms]')
 p.ylabel('correlation amplitude')
 p.legend()

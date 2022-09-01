@@ -1,3 +1,9 @@
+# Tested with tttrlib 0.21.9
+###################################
+# Katherina Hemmen ~ Core Unit Fluorescence Imaging ~ RVZ
+# katherina.hemmen@uni-wuerzburg.de
+###################################
+
 import tttrlib
 import pylab as p
 import numpy as np
@@ -6,7 +12,7 @@ import numpy as np
 #  Data input & reading
 ########################################################
 
-data = tttrlib.TTTR('DNA10bpPIE.ptu', 'PTU')  # file to be read
+data = tttrlib.TTTR('C:/Users/kah73xs/PycharmProjects/scripts/DNA10bpPIE_1.ptu', 'PTU')  # file to be read
 channel_1 = 0  # usually green perpendicular channel (VH, s)
 channel_2 = 2  # usually green parallel channel (VV, p)
 channel_3 = 1  # usually red perpendicular channel (VH, s)
@@ -28,10 +34,10 @@ save_filename_jordi_red_delay = "jordi_red_delay.txt"
 #  Read data & header
 ########################################################
 
-header = data.get_header()
-macro_time_calibration = header.macro_time_resolution  # unit nanoseconds
-micro_times = data.get_micro_time()
-micro_time_resolution = header.micro_time_resolution
+header = data.header
+macro_time_calibration = data.header.macro_time_resolution  # unit nanoseconds
+micro_times = data.micro_times
+micro_time_resolution = data.header.micro_time_resolution  # unit seconds
 
 ########################################################
 #  Data rebinning (native resolution often too high, 16-32 ps sufficient)
@@ -89,7 +95,7 @@ red_s_counts_cut_delay = red_s_counts_delay[binned_nr_of_bins//2:binned_nr_of_bi
 red_p_counts_cut_delay = red_p_counts_delay[binned_nr_of_bins//2:binned_nr_of_bins:]
 
 # Build the time axis
-dt = header.micro_time_resolution
+dt = micro_time_resolution * 1e9  # unit nanoseconds
 x_axis = np.arange(green_s_counts.shape[0]) * dt * binning  # identical for data from same time window
 x_axis_prompt = x_axis[0:binned_nr_of_bins//2:]
 x_axis_delay = x_axis[binned_nr_of_bins//2::]
